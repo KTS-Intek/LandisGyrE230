@@ -176,6 +176,8 @@ QVariantHash LandisGyrE230EncoderDecoder::getServiceMessages(quint16 &step, QVar
         hashMessage = getStep1HashMesssageLowLevel();
         hashMessage.insert("heavy_answer_0", true); //it is about 4K
         hashMessage.insert("endSymb2", QByteArray::fromHex("0D 0A 03"));//
+
+
         hashTmpData.insert("E230_logOutAfter", true);
 
         break;}
@@ -415,7 +417,7 @@ void LandisGyrE230EncoderDecoder::decodeTotalEnergyMessages(quint16 &step, QVari
 
     }
 
-    step = 0xFFFF;
+    step = 11;
     hashTmpData.insert("step", step);
     hashTmpData.insert("messFail", false);
 
@@ -520,7 +522,7 @@ void LandisGyrE230EncoderDecoder::decodeVoltageMessages(quint16 &step, QVariantH
 
     }
 
-    step = 0xFFFF;
+   step = 11;
     hashTmpData.insert("step", step);
     hashTmpData.insert("messFail", false);
 

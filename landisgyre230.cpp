@@ -269,6 +269,11 @@ Mess2meterRezult LandisGyrE230::message2Meter(const Mess2meterArgs &pairAboutMet
     quint16 step = hashTmpData.value("step", 0).toUInt();
 
 
+    if(step == 11){
+        hashMessage = gamadecoder.getGoodByeMessage(hashTmpData);
+        return Mess2meterRezult(hashMessage, hashTmpData);
+    }
+
 
     if(pollCode >= POLL_CODE_READ_METER_LOGBOOK && pollCode <= POLL_CODE_READ_END_MONTH ){
 
@@ -327,6 +332,12 @@ QVariantHash LandisGyrE230::decodeMeterData(const DecodeMeterMess &threeHash, co
     if(gamadecoder.verbouseMode)
         qDebug() << "LandisGyrE230 read " << hashRead.value("readArr_0").toByteArray().simplified().trimmed();
 
+
+    if(step == 11){ //ignore the answer
+         hashTmpData.insert("messFail", false);
+         hashTmpData.insert("step", 0xFFFF);
+         return hashTmpData;
+    }
 
 
     //    const QByteArray arrNI = GamaG1MG3MEncoderDecoder::message2meterChecks(hashTmpData, lastAutoDetectNi, hashConstData, defVersion, lastAutoDetectDt);
