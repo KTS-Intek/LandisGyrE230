@@ -48,8 +48,12 @@ public:
 
     QVariantHash getServiceMessages(quint16 &step, QVariantHash &hashTmpData, const QByteArray &arrNI);
 
+    QVariantHash getServiceMessagesExt(quint16 &step, QVariantHash &hashTmpData, const QByteArray &arrNI, const bool &dataReadingMode, const QVariantHash &hashConstData);
+
+
     void decodeServiceMessages(quint16 &step, QVariantHash &hashTmpData, const QVariantHash &hashRead, ErrsStrct &errWarn, int &error_counter);
 
+    void decodeServiceMessagesExt(quint16 &step, QVariantHash &hashTmpData, const QVariantHash &hashRead, const bool &dataReadingMode, ErrsStrct &errWarn, int &error_counter);
 
     bool canProcessDtSNObisCodes(const QHash<QString, OneIECParsedAnswer> &hAnswers, const QVariantHash &hashConstData, QVariantHash &hashTmpData, ErrsStrct &errWarn, int &error_counter, int &warning_counter);
 
@@ -66,6 +70,12 @@ public:
 
 
     QVariantHash isItYourExt(const QByteArray &arr, QByteArray &lastDN, QTime &timeFromLastAuth);
+
+
+    QVariantHash getReadDtMessage();
+
+
+    bool decodeDtMessage(const QVariantHash &hashRead, QVariantHash &hashTmpData);
 
 
 };

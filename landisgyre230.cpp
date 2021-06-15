@@ -196,19 +196,163 @@ QVariantHash LandisGyrE230::meterSn2NI(const QString &meterSn)
 
 Mess2meterRezult LandisGyrE230::messParamPamPam(const Mess2meterArgs &pairAboutMeter)
 {
-    QVariantHash hashTmpData = pairAboutMeter.hashTmpData;
 
+
+    const QVariantHash hashConstData = pairAboutMeter.hashConstData;
+    QVariantHash hashTmpData = pairAboutMeter.hashTmpData;
+    QVariantHash hashMessage;
+
+    const QByteArray arrNI = gamadecoder.message2meterChecks(hashTmpData, lastAutoDetectNi, hashConstData, hashTmpData.value("vrsn").toString(), lastAutoDetectDt);
+
+    quint8 pollCode = hashConstData.value("pollCode").toUInt();
+
+    quint16 step = hashTmpData.value("step", 0).toUInt();
+
+
+    if(step == 11){
+        hashMessage = gamadecoder.getGoodByeMessage(hashTmpData);
+        return Mess2meterRezult(hashMessage, hashTmpData);
+    }
+
+    if(pollCode == POLL_CODE_READ_DATE_TIME_DST || pollCode == POLL_CODE_WRITE_DATE_TIME ){
+
+
+
+        if(step < 4){
+            hashMessage = gamadecoder.getServiceMessagesExt(step, hashTmpData, arrNI, false, hashConstData);
+            //log in, password
+        }else{
+
+            switch(pollCode){
+
+            case POLL_CODE_READ_DATE_TIME_DST:{
+                //81 D2 B2 82 C3 30 30 33 28 A9 03 90             .....003(
+                hashMessage = gamadecoder.getReadDtMessage();
+                break;}
+
+
+            case POLL_CODE_WRITE_DATE_TIME:{
+                hashMessage = gamadecoder.getReadDtMessage();
+
+                break;}
+            }
+        }
+
+
+        if(!hashMessage.isEmpty()){
+            if(!hashMessage.contains("endSymb"))
+                hashMessage.insert("endSymb", "");
+            hashTmpData.insert("step", step);
+            hashMessage.insert("data7EPt", true);
+
+            return Mess2meterRezult(hashMessage, hashTmpData);
+        }
+
+    }
+
+    hashMessage.clear();
     hashTmpData.insert("notsup", true);
     hashTmpData.insert("notsupasdone", true);
     hashTmpData.insert("step", 0xFFFF);
-    return Mess2meterRezult(QVariantHash(),hashTmpData);
+
+
+
+    return Mess2meterRezult(hashMessage, hashTmpData);
+
+
+
+
+
 }
 
 //-----------------------------------------------------------------------------------------
 
 QVariantHash LandisGyrE230::decodeParamPamPam(const DecodeMeterMess &threeHash)
 {
-    return threeHash.hashTmpData;
+    const QVariantHash hashConstData = threeHash.hashConstData;
+    const QVariantHash hashRead = threeHash.hashRead;
+    QVariantHash hashTmpData = threeHash.hashTmpData;
+
+
+    int error_counter = qMax(0, hashTmpData.value("error_counter", 0).toInt());
+    int warning_counter = qMax(0, hashTmpData.value("warning_counter", 0).toInt());
+
+
+    hashTmpData.insert("messFail", true);
+    quint8 pollCode = hashConstData.value("pollCode").toUInt();
+    bool skipMeterSN = !hashTmpData.value("SN").toString().isEmpty();
+    quint16 step = hashTmpData.value("step", (quint16)0).toUInt();
+
+    if(gamadecoder.verbouseMode)
+        qDebug() << "LandisGyrE230 read " << hashRead.value("readArr_0").toByteArray().simplified().trimmed();
+
+
+    if(step == 11){ //ignore the answer
+         hashTmpData.insert("messFail", false);
+         hashTmpData.insert("step", 0xFFFF);
+         return hashTmpData;
+    }
+
+
+    //    const QByteArray arrNI = GamaG1MG3MEncoderDecoder::message2meterChecks(hashTmpData, lastAutoDetectNi, hashConstData, defVersion, lastAutoDetectDt);
+
+    if(hashRead.value("readArr_0").toByteArray() == QByteArray::fromHex("15")){
+        if(gamadecoder.verbouseMode) qDebug() << "authorize error 15, try again" ;
+        hashTmpData.insert(MeterPluginHelper::errWarnKey(error_counter, true), MeterPluginHelper::prettyMess(tr("Authorize error 15"), "", true, lastErr));
+        hashTmpData.insert("error_counter", error_counter);
+        hashTmpData.insert("warning_counter", warning_counter);
+
+        hashTmpData.insert("logined", false);
+        hashTmpData.insert("step", (quint16)0);
+        hashTmpData.insert("CE303_BuvEkt", true);//спочатку закрити попередній сеанс
+        return hashTmpData;
+    }
+
+
+    if(pollCode == POLL_CODE_READ_DATE_TIME_DST || pollCode == POLL_CODE_WRITE_DATE_TIME ){
+
+        if(step < 4){
+            gamadecoder.decodeServiceMessagesExt(step, hashTmpData, hashRead, false, lastErr, error_counter);
+
+        }else{
+
+            switch(pollCode){
+
+            case POLL_CODE_READ_DATE_TIME_DST:{
+                if(gamadecoder.decodeDtMessage(hashRead, hashTmpData)){
+                    hashTmpData.insert("messFail", false);
+                    hashTmpData.insert("step", 0xFFFF);
+                }
+                break;}
+
+
+            case POLL_CODE_WRITE_DATE_TIME:{
+                if(gamadecoder.decodeDtMessage(hashRead, hashTmpData)){
+                    hashTmpData.insert("messFail", false);
+                    hashTmpData.insert("step", 0xFFFF);
+                }
+                break;}
+            }
+        }
+
+
+    }else{
+        step = 0xFFFF;
+    }
+
+
+
+    if(step < 0xFFFF){
+        if(hashTmpData.value("messFail").toBool()){
+            hashTmpData.insert("logined", false);
+            hashTmpData.insert("step", (quint16)0);
+        }
+    }
+    hashTmpData.insert("error_counter", error_counter);
+    hashTmpData.insert("warning_counter", warning_counter);
+
+    if(gamadecoder.verbouseMode) qDebug() << "\r\nCE303::decodeGroupPollData "  << pollCode << skipMeterSN << hashTmpData.value("step").toUInt() << hashTmpData.value("messFail").toBool();
+    return hashTmpData;
 
 }
 

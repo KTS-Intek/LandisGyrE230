@@ -38,7 +38,7 @@ QString LandisGyrE230EncoderDecoder::getSupportedMetersPrefixes()
 
 QByteArray LandisGyrE230EncoderDecoder::getDefPasswd()
 {
-    return QByteArray();
+    return QByteArray("00000000");
 
 }
 
@@ -146,7 +146,12 @@ int LandisGyrE230EncoderDecoder::calculateEnrgIndx(qint16 currEnrg, const quint8
 QVariantHash LandisGyrE230EncoderDecoder::getServiceMessages(quint16 &step, QVariantHash &hashTmpData, const QByteArray &arrNI)
 {
 
+    return getServiceMessagesExt(step, hashTmpData, arrNI, true, QVariantHash());
 
+}
+
+QVariantHash LandisGyrE230EncoderDecoder::getServiceMessagesExt(quint16 &step, QVariantHash &hashTmpData, const QByteArray &arrNI, const bool &dataReadingMode, const QVariantHash &hashConstData)
+{
     QVariantHash hashMessage;
 
 
@@ -172,30 +177,51 @@ QVariantHash LandisGyrE230EncoderDecoder::getServiceMessages(quint16 &step, QVar
 
     case 1: {//log in start1
 
-        //it is for data reading, for dt writing use another way
-        hashMessage = getStep1HashMesssageLowLevel();
-        hashMessage.insert("heavy_answer_0", true); //it is about 4K
-        hashMessage.insert("endSymb2", QByteArray::fromHex("0D 0A 03"));//
+
+        if(dataReadingMode){
+            //it is for data reading, for dt writing use another way
+            hashMessage = getStep1HashMesssageLowLevel();
+            hashMessage.insert("heavy_answer_0", true); //it is about 4K
+            hashMessage.insert("endSymb2", QByteArray::fromHex("0D 0A 03"));//
 
 
-        hashTmpData.insert("E230_logOutAfter", true);
+            hashTmpData.insert("E230_logOutAfter", true);
+
+        }else{
+            //it is for data reading, for dt writing use another way
+            hashMessage = getStep1HashMesssage();
+
+            hashMessage.insert("endSymb2", QByteArray::fromHex("29 03"));//01 50 30 02 28 42 34 43 39 43 46 30 31 29 03 68 .P0.(B4C9CF01).h
+
+
+        }
+
 
         break;}
 
 
+    case 2:{
+        const QByteArray passwd = hashConstData.value("passwd", QByteArray()).toByteArray();
+
+
+        hashMessage = getStep2HashMesssage(QByteArray( (passwd.isEmpty() || passwd.length() > 12) ? getDefPasswd() : passwd ).toHex());
+        break;} //password    192.168.88.33  > 18:40:44.295 01 50 31 02 28 30 30 30 30 30 30 30 30 29 03 E1 .P..(00000000
 
 
     }
 
 
     return hashMessage;
-
-
 }
 
 //----------------------------------------------------------------------
 
 void LandisGyrE230EncoderDecoder::decodeServiceMessages(quint16 &step, QVariantHash &hashTmpData, const QVariantHash &hashRead, ErrsStrct &errWarn, int &error_counter)
+{
+    decodeServiceMessagesExt(step, hashTmpData, hashRead, true, errWarn, error_counter);
+}
+
+void LandisGyrE230EncoderDecoder::decodeServiceMessagesExt(quint16 &step, QVariantHash &hashTmpData, const QVariantHash &hashRead, const bool &dataReadingMode, ErrsStrct &errWarn, int &error_counter)
 {
     if(verbouseMode) qDebug() << "CE303 step " << step << hashTmpData.value("vrsn").toString();
 
@@ -218,7 +244,27 @@ void LandisGyrE230EncoderDecoder::decodeServiceMessages(quint16 &step, QVariantH
         //for data reading , do not do anything
         step = 2;
 
-//        isLoginGoodSmart(hashRead,  2, hashTmpData);
+        if(!dataReadingMode){
+            //parameters reading mode
+
+            if(!isLoginGoodSmart(hashRead, 2, hashTmpData)){
+                step = 0;
+            }
+
+        }
+
+        break;}
+
+    case 2:{
+        if(isRead06(hashRead)){
+            step = 4;
+            hashTmpData.insert("messFail", false);
+            hashTmpData.insert("step", step);
+
+        }else{
+            step = 0;
+        }
+
         break;}
 
 
@@ -606,6 +652,57 @@ QVariantHash LandisGyrE230EncoderDecoder::isItYourExt(const QByteArray &arr, QBy
 //        }
 //    }
     return QVariantHash();
+}
+
+QVariantHash LandisGyrE230EncoderDecoder::getReadDtMessage()
+{
+    QVariantHash hashMessage;
+    insertEndSymb2_2903(hashMessage);
+
+    hashMessage.insert("message_0", messageHexWithBCC("01 52 32 02 43 30 30 33 28 29 03"));//01 52 32 02 43 30 30 33 28 29 03 90             .....003(
+    hashTmpData.insert("E230_logOutAfter", true);
+
+
+    return hashMessage;
+}
+
+bool LandisGyrE230EncoderDecoder::decodeDtMessage(const QVariantHash &hashRead, QVariantHash &hashTmpData)
+{
+//    ttyUSB0     > 19:48:50.079 02 43 30 30 33 28 32 31 30 36 31 35 31 39 35 39 .C003(2106151959
+//                                31 39 30 30 32 31 29 03 7C                      190021).|
+
+    const QByteArray readArr = hashRead.value("readArr_0").toByteArray();
+
+    if(readArr.startsWith(QByteArray::fromHex("02 43 30 30 33 28"))){
+
+        const QString dtline = "20" + QString(readArr.mid(6, 12));
+
+//        21 06 15   19 59 19  0021
+        //2021
+        //06 June
+        //15 dom
+        // 19 : 59 : 19
+
+
+        const QDateTime meterdt = QDateTime::fromString(dtline, "yyyyMMddhhmmss");
+
+        hashTmpData.insert("lastMeterDateTime", meterdt);
+
+        const QDateTime currDt = QDateTime::currentDateTime();
+        hashTmpData.insert("IEC_currentDateTime", currDt);
+
+
+        hashTmpData.insert("IEC_DateTime", meterdt);
+        hashTmpData.insert("lastMeterDateTime", meterdt);
+        return true;
+
+    }
+
+
+//    const QDate meterdate = QDate::fromString(QString("20%1").arg(hAnswers.value("0.9.2").value), "yyyy-MM-dd");
+//    const QTime metertime = QTime::fromString(hAnswers.value("0.9.1").value, "hh:mm:ss");
+
+    return false;
 }
 
 //----------------------------------------------------------------------
