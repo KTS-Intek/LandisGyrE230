@@ -227,12 +227,12 @@ Mess2meterRezult LandisGyrE230::messParamPamPam(const Mess2meterArgs &pairAboutM
 
             case POLL_CODE_READ_DATE_TIME_DST:{
                 //81 D2 B2 82 C3 30 30 33 28 A9 03 90             .....003(
-                hashMessage = gamadecoder.getReadDtMessage();
+                hashMessage = gamadecoder.getReadDtMessage(hashTmpData);
                 break;}
 
 
             case POLL_CODE_WRITE_DATE_TIME:{
-                hashMessage = gamadecoder.getReadDtMessage();
+                hashMessage = gamadecoder.getReadDtMessage(hashTmpData);
 
                 break;}
             }

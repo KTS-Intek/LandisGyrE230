@@ -72,11 +72,13 @@ public:
     QVariantHash isItYourExt(const QByteArray &arr, QByteArray &lastDN, QTime &timeFromLastAuth);
 
 
-    QVariantHash getReadDtMessage();
+    QVariantHash getReadDtMessage(QVariantHash &hashTmpData);
 
 
     bool decodeDtMessage(const QVariantHash &hashRead, QVariantHash &hashTmpData);
 
+
+    void fixEnrgTariffs(QVariantHash &hashTmpData, const QVariantHash &hashConstData, const QString &enrg, const bool &useRealValueOnly);
 
 };
 

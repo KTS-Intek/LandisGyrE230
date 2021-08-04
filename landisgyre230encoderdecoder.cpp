@@ -463,6 +463,27 @@ void LandisGyrE230EncoderDecoder::decodeTotalEnergyMessages(quint16 &step, QVari
 
     }
 
+    //it has no tariffs for reactive energy
+    //Oleg from Sadova 66 wants to use the next calculated tariff table T1 = T0*2/3, T2 = T0*1/3
+    //                    const bool lockWriteDt = (hashConstData.value("memo").toString().startsWith("DNWT ") || hashConstData.value("dta", false).toBool());
+//if memo contains ZMR110CRefRS, calculate Reactive
+
+
+    const QStringList listEnrg = hashConstData.value("listEnrg").toStringList();
+
+    if(listEnrg.contains("A-"))
+        fixEnrgTariffs(hashTmpData, hashConstData, "A-", true);
+
+    if(listEnrg.contains("R+"))
+        fixEnrgTariffs(hashTmpData, hashConstData, "R+", false);
+
+    if(listEnrg.contains("R-"))
+        fixEnrgTariffs(hashTmpData, hashConstData, "R-", false);
+
+
+
+
+
     step = 11;
     hashTmpData.insert("step", step);
     hashTmpData.insert("messFail", false);
@@ -654,7 +675,7 @@ QVariantHash LandisGyrE230EncoderDecoder::isItYourExt(const QByteArray &arr, QBy
     return QVariantHash();
 }
 
-QVariantHash LandisGyrE230EncoderDecoder::getReadDtMessage()
+QVariantHash LandisGyrE230EncoderDecoder::getReadDtMessage(QVariantHash &hashTmpData)
 {
     QVariantHash hashMessage;
     insertEndSymb2_2903(hashMessage);
@@ -703,6 +724,46 @@ bool LandisGyrE230EncoderDecoder::decodeDtMessage(const QVariantHash &hashRead, 
 //    const QTime metertime = QTime::fromString(hAnswers.value("0.9.1").value, "hh:mm:ss");
 
     return false;
+}
+
+void LandisGyrE230EncoderDecoder::fixEnrgTariffs(QVariantHash &hashTmpData, const QVariantHash &hashConstData, const QString &enrg, const bool &useRealValueOnly)
+{
+    bool ok;
+    const qreal sumValue = hashTmpData.value(QString("T0_%1").arg(enrg)).toString().toDouble(&ok);
+
+    if(!ok || sumValue < 0.0)
+        return;//there is nothing to fix
+
+    int trff = hashConstData.value("trff").toInt();
+    if(trff < 1)
+        trff = 0;
+    else if(trff > 4)
+        trff = 4;
+
+
+    if(trff < 2 || useRealValueOnly){
+        hashTmpData.insert(QString("T1_%1").arg(enrg), PrettyValues::prettyNumber(sumValue, 3));//.toString().toDouble(&ok);
+
+        if(trff > 1)
+            hashTmpData.insert(QString("T2_%1").arg(enrg), "0");//.toString().toDouble(&ok);
+
+    }else{
+        const qreal t1value = (sumValue * 2.0) / 3.0;
+         hashTmpData.insert(QString("T1_%1").arg(enrg), PrettyValues::prettyNumber(t1value, 3));//.toString().toDouble(&ok);
+
+         const qreal t2value = sumValue - t1value;
+         hashTmpData.insert(QString("T2_%1").arg(enrg), PrettyValues::prettyNumber(t2value, 3));//.toString().toDouble(&ok);
+    }
+
+
+     for(int t = 3; t <= trff; t++){
+         hashTmpData.insert(QString("T%1_%2").arg(t).arg(enrg), "0");
+     }
+
+
+
+
+
 }
 
 //----------------------------------------------------------------------
